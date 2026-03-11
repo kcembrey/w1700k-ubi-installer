@@ -5,14 +5,18 @@ on:
 
 env:
   REMOTE_REPOSITORY: hurrian/openwrt-w1700k
-  REMOTE_BRANCH: w1700k
+  REMOTE_BRANCH: xr1710g
   TARGET_SUBTARGET: airoha/an7581
-  INNER_CONFIG: configs/w1700k.config
+  INNER_CONFIG: configs/build.config
   OUTER_CONFIG: configs/minimal.config
-  RECOVERY_IMAGE: openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-recovery.itb
-  SYSUPGRADE_IMAGE: openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb
-  INSTALLER_IMAGE: openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb
-  UBOOT_IMAGE: openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb
+  RECOVERY_W1700K: openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-recovery.itb
+  SYSUPGRADE_W1700K: openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb
+  INSTALLER_W1700K: openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb
+  UBOOT_W1700K: openwrt-airoha-an7581-gemtek_w1700k-ubi-chainload-uboot.itb
+  RECOVERY_XR1710G: openwrt-airoha-an7581-gemtek_xr1710g-ubi-initramfs-recovery.itb
+  SYSUPGRADE_XR1710G: openwrt-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb
+  INSTALLER_XR1710G: openwrt-airoha-an7581-gemtek_xr1710g-ubi-initramfs-installer.itb
+  UBOOT_XR1710G: openwrt-airoha-an7581-gemtek_xr1710g-ubi-chainload-uboot.itb
 
 jobs:
   check_commits:
@@ -85,24 +89,40 @@ jobs:
           cd openwrt
           make -j"$(nproc)" defconfig download world
 
-      - name: Stage installer assets and add installer files (outer build only)
-        run: |
-          cd openwrt
-          mkdir -p files/installer
-          cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.RECOVERY_IMAGE }}" "files/installer/"
-          cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.SYSUPGRADE_IMAGE }}" "files/installer/"
-          rsync -a ../installer-repo/files/ files/
-          chmod +x \
-            files/installer/install.sh \
-            files/lib/preinit/00_installer
-
       - name: Prepare config (outer build)
         run: |
           cd openwrt
           cp "../installer-repo/${{ env.OUTER_CONFIG }}" .config
           make defconfig
 
-      - name: Rebuild images with installer payload (outer build)
+      - name: Stage installer assets and add installer files (W1700K outer build)
+        run: |
+          cd openwrt
+          mkdir -p files/installer
+          cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.RECOVERY_W1700K }}" "files/installer/"
+          cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.SYSUPGRADE_W1700K }}" "files/installer/"
+          rsync -a ../installer-repo/files.w1700k/ files/
+          chmod +x \
+            files/installer/install.sh \
+            files/lib/preinit/00_installer
+
+      - name: Rebuild images with installer payload (W1700K outer build)
+        run: |
+          cd openwrt
+          make -j"$(nproc)"
+
+      - name: Stage installer assets and add installer files (XR1710G outer build)
+        run: |
+          cd openwrt
+          mkdir -p files/installer
+          cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.RECOVERY_XR1710G }}" "files/installer/"
+          cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.SYSUPGRADE_XR1710G }}" "files/installer/"
+          rsync -a ../installer-repo/files.xr1710g/ files/
+          chmod +x \
+            files/installer/install.sh \
+            files/lib/preinit/00_installer
+
+      - name: Rebuild images with installer payload (XR1710G outer build)
         run: |
           cd openwrt
           make -j"$(nproc)"
@@ -110,13 +130,17 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p output/installer
-          cp "openwrt/bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.RECOVERY_IMAGE }}" "output/installer/${{ env.INSTALLER_IMAGE }}"
-          cp "openwrt/bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.UBOOT_IMAGE }}" "output/installer/"
+          cp "openwrt/bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.RECOVERY_W1700K }}" "output/installer/${{ env.INSTALLER_W1700K }}"
+          cp "openwrt/bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.UBOOT_W1700K }}" "output/installer/"
+          cp "openwrt/bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.RECOVERY_XR1710G }}" "output/installer/${{ env.INSTALLER_XR1710G }}"
+          cp "openwrt/bin/targets/${{ env.TARGET_SUBTARGET }}/${{ env.UBOOT_XR1710G }}" "output/installer/"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: w1700k-installer
           path: |
-            output/installer/${{ env.INSTALLER_IMAGE }}
-            output/installer/${{ env.UBOOT_IMAGE }}
+            output/installer/${{ env.INSTALLER_W1700K }}
+            output/installer/${{ env.UBOOT_W1700K }}
+            output/installer/${{ env.INSTALLER_XR1710G }}
+            output/installer/${{ env.UBOOT_XR1710G }}
