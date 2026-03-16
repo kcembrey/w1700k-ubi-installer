@@ -23,7 +23,6 @@ jobs:
             sysupgrade: openwrt-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb
             installer: openwrt-airoha-an7581-gemtek_xr1710g-ubi-initramfs-installer.itb
             uboot: openwrt-airoha-an7581-gemtek_xr1710g-ubi-chainload-uboot.itb
-            files_dir: files.xr1710g
 
     steps:
       - name: Checkout installer repository
@@ -69,7 +68,7 @@ jobs:
           mkdir -p files/installer
           cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ matrix.recovery }}" "files/installer/"
           cp "bin/targets/${{ env.TARGET_SUBTARGET }}/${{ matrix.sysupgrade }}" "files/installer/"
-          rsync -a ../installer-repo/${{ matrix.files_dir }}/ files/
+          rsync -a ../installer-repo/files/ files/
           chmod +x files/installer/install.sh files/lib/preinit/00_installer
           make -j"$(nproc)"
 

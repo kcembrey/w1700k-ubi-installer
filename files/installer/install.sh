@@ -2,8 +2,6 @@
 set -e
 
 INSTALLER_DIR="/installer"
-RECOVERY_IMAGE="${INSTALLER_DIR}/openwrt-airoha-an7581-gemtek_xr1710g-ubi-initramfs-recovery.itb"
-SYSUPGRADE_IMAGE="${INSTALLER_DIR}/openwrt-airoha-an7581-gemtek_xr1710g-ubi-squashfs-sysupgrade.itb"
 FACTORY_BIN="${INSTALLER_DIR}/factory.bin"
 
 # ---- Factory layout offsets ----
@@ -80,6 +78,27 @@ get_dsd_value() {
   key="$1"
   src="$2"
   grep -m1 "^${key}=" "$src" | cut -d= -f2-
+}
+
+detect_device() {
+  case "$SERIAL_NUMBER" in
+    W1700K*)
+      DEV_MODEL="w1700k"
+      ;;
+    W1701K*)
+      DEV_MODEL="w1701k"
+      ;;
+    XR1710G*)
+      DEV_MODEL="xr1710g"
+      ;;
+    *)
+      die "Unsupported device serial: $SERIAL_NUMBER"
+      ;;
+  esac
+
+  RECOVERY_IMAGE="${INSTALLER_DIR}/openwrt-airoha-an7581-gemtek_${DEV_MODEL}-ubi-initramfs-recovery.itb"
+  SYSUPGRADE_IMAGE="${INSTALLER_DIR}/openwrt-airoha-an7581-gemtek_${DEV_MODEL}-ubi-squashfs-sysupgrade.itb"
+  log "Detected $DEV_MODEL via serial number."
 }
 
 get_factory_eeprom() {
@@ -241,6 +260,11 @@ install_write_openwrt() {
   nand_upgrade_fit "$1" cat
 }
 
+log "Generating factory.bin on device..."
+get_factory_eeprom "$EEPROM_ABS_OFF" "$EEPROM_LEN" "7990" "$EEPROM_DUMP"
+get_factory_macs "$DSD_OFF" "$DSD_LEN"
+detect_device
+
 require_file "$RECOVERY_IMAGE"
 require_file "$SYSUPGRADE_IMAGE"
 
@@ -251,9 +275,6 @@ if already_partitioned; then
   fi
 fi
 
-log "Generating factory.bin on device..."
-get_factory_eeprom "$EEPROM_ABS_OFF" "$EEPROM_LEN" "7990" "$EEPROM_DUMP"
-get_factory_macs "$DSD_OFF" "$DSD_LEN"
 build_factory_volume "$EEPROM_DUMP" "$FACTORY_BIN"
 require_file "$FACTORY_BIN"
 

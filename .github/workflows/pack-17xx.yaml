@@ -23,7 +23,6 @@ jobs:
           - device: w1700k
             profile: gemtek_w1700k-ubi
             installer: openwrt-airoha-an7581-gemtek_w1700k-ubi-initramfs-installer.itb
-            files_dir: files.w1700k
 
     steps:
       - name: Checkout installer repository
@@ -67,8 +66,8 @@ jobs:
           mkdir -p initrd/installer
           cp ../staging/sysupgrade.itb initrd/installer/
           # Copy installer files (scripts/preinit/etc)
-          if [ -d "../${{ matrix.files_dir }}" ]; then
-            cp -avr ../${{ matrix.files_dir }}/* initrd/
+          if [ -d "../files" ]; then
+            cp -avr ../files/* initrd/
           fi
           chmod +x initrd/installer/*.sh initrd/lib/preinit/* || true
           # 4. Patch Device Tree
