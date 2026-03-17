@@ -56,45 +56,60 @@ jobs:
           mkdir -p ../output
           cp bin/targets/airoha/an7581/*uboot* ../output/ || true
 
-      - name: Outer Build (Custom Installer)
+      - name: Outer Build (Repackage Installer)
         run: |
-          # 1. Locate the Image Builder components
-          KERNEL_BIN=$(find ib/build_dir -name "*-kernel.bin" | head -n 1)
-          DTB_BIN=$(find ib/build_dir -name "image-*.dtb" | head -n 1)
+          # 1. Ingredient Discovery
+          BIN_DIR="ib/bin/targets/airoha/an7581"
+          STAGING_IMG_DIR=$(find ib/staging_dir -name "image" -type d | grep "target-" | head -n 1)
+          DTB_SOURCE=$(find "$STAGING_IMG_DIR" -name "an7581_gemtek_w1700k-u-boot.dtb" | head -n 1)
+          KERNEL_BIN=$(find ib/build_dir -name "Image" | head -n 1)
+          # Fallback check for Kernel
+          if [ -z "$KERNEL_BIN" ]; then
+            KERNEL_BIN=$(find "$STAGING_IMG_DIR" -name "Image" | head -n 1)
+          fi
+          echo "Confirmed DTB: $DTB_SOURCE"
+          echo "Confirmed Kernel: $KERNEL_BIN"
+          if [ -z "$DTB_SOURCE" ] || [ -z "$KERNEL_BIN" ]; then
+            echo "ERROR: Critical ingredients missing."
+            exit 1
+          fi
+          # 2. Setup Workspace
           mkdir -p installer_work/initrd
           cp -pPR installer_skeleton/. installer_work/initrd/
-          # 2. Inject Installer payload and custom files
+          # 3. Inject payload and universal files
           mkdir -p installer_work/initrd/installer
           cp staging/sysupgrade.itb installer_work/initrd/installer/
           if [ -d "files" ]; then
             cp -pPR files/. installer_work/initrd/
           fi
-          chmod +x installer_work/initrd/installer/*.sh installer_work/initrd/lib/preinit/* || true
-          # 3. Patch Device Tree
+          chmod +x installer_work/initrd/installer/*.sh installer_work/initrd/lib/preinit/* 2>/dev/null || true
+          # 4. Patch Device Tree
+          # We store absolute paths before entering the subdirectory
+          ABS_DTB=$(realpath "$DTB_SOURCE")
+          ABS_KERNEL=$(realpath "$KERNEL_BIN")
           cd installer_work
-          dtc -I dtb -O dts -o temp.dts "$DTB_BIN"
-          # Disable wifi
-          sed -i '/&pcie[02] {/,/status = "okay";/ s/status = "okay";/status = "disabled";/' temp.dts
-          # Disable ubi mount
-          sed -i 's/"ubi"/"ibu"/g' temp.dts
-          dtc -I dts -O dtb -o installer.dtb temp.dts
-          # 4. Pack Installer Initramfs
+          dtc -I dtb -O dts -o installer.dts "$ABS_DTB"
+          # Apply Gemtek patches
+          sed -i '/&pcie[02] {/,/status = "okay";/ s/status = "okay";/status = "disabled";/' installer.dts
+          sed -i 's/"ubi"/"ibu"/g' installer.dts
+          dtc -I dts -O dtb -o installer.dtb installer.dts
+          # 5. Pack Initramfs
           cd initrd
           find . | LC_ALL=C sort | cpio --reproducible -o -H newc -R 0:0 | xz -9 --check=crc32 > ../installer.initrd
           cd ..
-          # 5. Generate ITS and Final ITB
+          # 6. Generate ITS and Final ITB using absolute kernel path
           chmod +x ../ib/scripts/mkits.sh
           ../ib/scripts/mkits.sh \
             -D "${{ matrix.profile }}" \
             -o installer.its \
-            -k "$KERNEL_BIN" \
+            -k "$ABS_KERNEL" \
             -C none \
             -d ./installer.dtb \
             -i ./installer.initrd \
             -a 0x80200000 -e 0x80200000 \
             -A arm64 -v "6.12"
-          # Use external data padding (-E) and alignment (-B) to match OpenWrt Build/fit
-          mkimage -E -B 0x1000 -f installer.its ../output/${{ matrix.installer }}
+          # 7. Final Pack
+          mkimage -E -B 0x1000 -f installer.its ../output/${{ matrix.installer_name }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@main
